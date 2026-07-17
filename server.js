@@ -6,7 +6,6 @@ const { initAuthCreds } = require('@whiskeysockets/baileys');
 const { MOBILE_TOKEN } = require('@whiskeysockets/baileys/lib/Defaults');
 
 const app = express();
-const PORT = 3000;
 const PROXY = 'https://y9yrsygcg6.execute-api.us-east-1.amazonaws.com';
 const API_KEYS = ['xzcorpz'];
 
@@ -171,8 +170,6 @@ app.post('/bulk', checkApiKey, async (req, res) => {
         await new Promise(r => setTimeout(r, 1000));
     }
     res.json({ results });
-});
+})
 
-app.listen(PORT, () => {
-    console.log(`Running on http://localhost:${PORT}`);
-});
+module.exports = app;
