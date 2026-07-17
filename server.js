@@ -87,7 +87,7 @@ function buildParams(phone) {
         simnum: '1',
         hasinrc: '1',
         pid: Math.floor(Math.random() * 1000).toString(),
-        id: Buffer.from(creds.identityId).toString('hex'),
+        id: Buffer.from(creds.identityId || crypto.randomBytes(16)).toString('hex'),
         backup_token: Buffer.from(creds.backupToken).toString('hex'),
         token: crypto.createHash('md5')
             .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
