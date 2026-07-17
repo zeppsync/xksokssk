@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const { initAuthCreds } = require('@whiskeysockets/baileys');
 const { MOBILE_TOKEN } = require('@whiskeysockets/baileys/lib/Defaults');
-
+const p = process.env.PORT || process.env.SERVER_PORT || 3000;
 const app = express();
 const PROXY = 'https://y9yrsygcg6.execute-api.us-east-1.amazonaws.com';
 const API_KEYS = ['xzcorpz'];
@@ -171,5 +171,13 @@ app.post('/bulk', checkApiKey, async (req, res) => {
     }
     res.json({ results });
 })
+
+app.get('/', async (req, res) => {
+    res.json({
+        "enp": "/cek ( get ), /cek ( post ), /bulk ( post )"
+    })
+})
+
+app.listen(p)
 
 module.exports = app;
