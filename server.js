@@ -178,6 +178,8 @@ app.get('/', async (req, res) => {
     })
 })
 
-app.listen(p)
+app.listen(p, () => {
+    console.log("has been runned in http://localhost:" + p);
+})
 
 module.exports = app;
