@@ -1,14 +1,14 @@
-const express = require('express');
-const cors = require('cors');
-const crypto = require('crypto');
-const axios = require('axios');
-const { initAuthCreds } = require('@whiskeysockets/baileys');
-const { MOBILE_TOKEN } = require('@whiskeysockets/baileys/lib/Defaults');
-const p = process.env.PORT || process.env.SERVER_PORT || 3000;
+import express from 'express';
+import cors from 'cors';
+import crypto from 'crypto';
+import axios from 'axios';
+import { initAuthCreds } from '@whiskeysockets/baileys';
+import { MOBILE_TOKEN } from '@whiskeysockets/baileys/lib/Defaults/index.js';
+
 const app = express();
 const PROXY = 'https://y9yrsygcg6.execute-api.us-east-1.amazonaws.com';
 const API_KEYS = ['xzcorpz'];
-
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
@@ -107,10 +107,9 @@ async function cekBan(phone) {
     const url = `${PROXY}/s/s?_=/v2/exist&${qs}`;
 
     const res = await axios.get(url, {
-        timeout: 15000,
         validateStatus: () => true,
         headers: {
-            'User-Agent': 'WhatsApp/999999999999999999999999999. Android/9 Device/Google_Phone-G576D',
+            'User-Agent': 'WhatsApp/999. Android/9 Device/Google_Phone-G576D',
             'WaMsysRequest': '1',
             'request_token': crypto.randomUUID(),
             'X-Forwarded-Host': 'v.whatsapp.net',
@@ -167,19 +166,13 @@ app.post('/bulk', checkApiKey, async (req, res) => {
     for (const num of numbers) {
         const result = await cekBan(num.replace(/[^0-9]/g, ''));
         results.push({ number: num, ...result });
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 500));
     }
     res.json({ results });
-})
+});
 
-app.get('/', async (req, res) => {
-    res.json({
-        "enp": "/cek ( get ), /cek ( post ), /bulk ( post )"
-    })
-})
+app.listen(PORT, () => {
+    console.log("Server has been started in http://localhost:" + PORT);
+});
 
-app.listen(p, () => {
-    console.log("has been runned in http://localhost:" + p);
-})
-
-module.exports = app;
+export default app;
