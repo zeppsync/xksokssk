@@ -63,7 +63,7 @@ function buildParams(phone) {
     const cc = phone.slice(0, 2);
     const national = phone.slice(2);
     const creds = initAuthCreds();
-
+    const c20 = crypto.randomBytes(20);
     const eRegid = Buffer.alloc(4);
     eRegid.writeInt32BE(creds.registrationId);
 
@@ -87,8 +87,8 @@ function buildParams(phone) {
         simnum: '1',
         hasinrc: '1',
         pid: Math.floor(Math.random() * 1000).toString(),
-        id: Buffer.from(creds?.identityId || crypto.randomBytes(20)).toString('hex'),
-        backup_token: Buffer.from(creds?.backupToken || crypto.randomBytes(20)).toString('hex'),
+        id: Buffer.from(creds?.identityId || c20).toString('hex'),
+        backup_token: Buffer.from(creds?.backupToken || c20).toString('hex'),
         token: crypto.createHash('md5')
             .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
             .digest('hex'),
