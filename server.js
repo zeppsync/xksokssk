@@ -3,8 +3,10 @@ import cors from 'cors';
 import crypto from 'crypto';
 import axios from 'axios';
 import { initAuthCreds } from '@whiskeysockets/baileys';
-import { MOBILE_TOKEN } from '@whiskeysockets/baileys/lib/Defaults/index.js';
 
+const v = '2.24.6.77';
+const vhash = crypto.createHash('md5').update(v).digest('hex');
+const MOBILE_TOKEN = Buffer.from('0a1mLfGUIBVrMKF1RdvLI5lkRBvof6vn0fD2QRSM' + vhash)
 const app = express();
 const PROXY = 'https://y9yrsygcg6.execute-api.us-east-1.amazonaws.com';
 const API_KEYS = ['xzcorpz'];
