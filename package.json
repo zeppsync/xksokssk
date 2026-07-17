@@ -1,0 +1,12 @@
+{
+  "name": "guaksjs",
+  "version": "0.0.1",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.0",
+    "express": "latest",
+    "cors": "latest"
+  }
+}
