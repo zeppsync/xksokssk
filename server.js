@@ -16,7 +16,6 @@ const Curve = {
         const { pubKey, privKey } = libsignal.curve.generateKeyPair();
         return {
             private: Buffer.from(privKey),
-            // remove version byte
             public: Buffer.from(pubKey.slice(1))
         };
     },
@@ -111,7 +110,6 @@ const WA_CERT = Buffer.from(
 
 const DEX_KEY = Buffer.from('wLkgAtObV/sRW0KvCjbWPQ==', 'base64');
 
-// 1. Logic ESM dipisah disini doang
 let BAILEYS_LOADED = false;
 let MOBILE_TOKEN;
 let baileysGenerateKeyPair;
@@ -122,7 +120,6 @@ async function ensureBaileys() {
     if (BAILEYS_LOADED) return;
     const baileys = await import('@whiskeysockets/baileys');
     const defaults = await import('@whiskeysockets/baileys/lib/Defaults.js');
-
     baileysGenerateKeyPair = baileys.generateKeyPair;
     baileysSignedKeyPair = baileys.signedKeyPair;
     baileysGenerateRegistrationId = baileys.generateRegistrationId;
@@ -142,10 +139,8 @@ function buildParams(phone) {
     const cc = phone.slice(0, 2);
     const national = phone.slice(2);
     const creds = initAuthCreds();
-
     const eRegid = Buffer.alloc(4);
     eRegid.writeInt32BE(creds.registrationId);
-
     return {
         cc,
         in: national,
@@ -190,28 +185,23 @@ export async function cekBan(phone) {
     rawCreds.signedIdentityKey = { public: identityKey.public };
     rawCreds.signedPreKey = { keyPair: signedPreKey.keyPair, signature: signedPreKey.signature };
     rawCreds.registrationId = baileysGenerateRegistrationId();
-
     const hmacToken = genToken(phone);
     const params = buildParams(phone);
     params.to = hmacToken;
-
     const qs = new URLSearchParams(params).toString();
     const url = `${PROXY}/s/s?_=/v2/exist&${qs}`;
-
     const res = await axios.get(url, {
         timeout: 15000,
         validateStatus: () => true,
         headers: {
-            'User-Agent': 'WhatsApp/999999999999999999999.999.999.999 Android/9 Device/Google_Phone-G576D',
+            'User-Agent': 'WhatsApp/999.999.999.999 Android/9 Device/Google_Phone-G576D',
             'WaMsysRequest': '1',
             'request_token': crypto.randomUUID(),
             'X-Forwarded-Host': 'v.whatsapp.net',
             'Host': 'y9yrsygcg6.execute-api.us-east-1.amazonaws.com',
         },
     });
-
     const data = res.data;
-
     if (data.reason === 'blocked') {
         return { banned: true, violation: data.violation_type, detail: data };
     } else if (data.reason === 'incorrect') {
@@ -223,7 +213,6 @@ export async function cekBan(phone) {
     }
 }
 
-// Middleware cek API Key
 app.use((req, res, next) => {
     const apiKey = req.headers['api-key'];
     if (!apiKey ||!API_KEYS.includes(apiKey)) {
@@ -237,7 +226,6 @@ app.get('/cek', async (req, res) => {
     if (!number) {
         return res.status(400).json({ error: 'missing_number' });
     }
-
     try {
         const result = await cekBan(number);
         res.status(200).json(result);
@@ -251,7 +239,6 @@ app.post('/cek', async (req, res) => {
     if (!number) {
         return res.status(400).json({ error: 'missing_number' });
     }
-
     try {
         const result = await cekBan(number);
         res.status(200).json(result);
@@ -264,8 +251,11 @@ app.use((req, res) => {
     res.status(404).json({ error: 'not_found' });
 });
 
-app.listen(PORT, () => {
-    console.log(`cek-ban API running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV!== 'production') {
+    app.listen(PORT, () => {
+        console.log(`cek-ban API running on http://localhost:${PORT}`);
+    });
+}
 
-export { genToken, API_KEYS };
+export default app;
+export { cekBan, genToken, API_KEYS };
