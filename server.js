@@ -8,6 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const PROXY = 'https://y9yrsygcg6.execute-api.us-east-1.amazonaws.com';
 const API_KEYS = ['xazepysk'];
+const MOBILE_TOKEN = Buffer.from('WgEAAAAA', 'base64');
 
 app.use(express.json());
 
@@ -110,23 +111,6 @@ const WA_CERT = Buffer.from(
 
 const DEX_KEY = Buffer.from('wLkgAtObV/sRW0KvCjbWPQ==', 'base64');
 
-let BAILEYS_LOADED = false;
-let MOBILE_TOKEN;
-let baileysGenerateKeyPair;
-let baileysSignedKeyPair;
-let baileysGenerateRegistrationId;
-
-async function ensureBaileys() {
-    if (BAILEYS_LOADED) return;
-    const baileys = await import('@whiskeysockets/baileys');
-    const defaults = await import('@whiskeysockets/baileys/lib/Defaults/index.js');
-    baileysGenerateKeyPair = baileys.generateKeyPair;
-    baileysSignedKeyPair = baileys.signedKeyPair;
-    baileysGenerateRegistrationId = baileys.generateRegistrationId;
-    MOBILE_TOKEN = defaults.MOBILE_TOKEN;
-    BAILEYS_LOADED = true;
-}
-
 function genToken(phone) {
     const hmac = crypto.createHmac('sha1', SECRET_KEY);
     hmac.update(WA_CERT);
@@ -164,8 +148,8 @@ function buildParams(phone) {
         id: Buffer.from(creds.identityId).toString('hex'),
         backup_token: Buffer.from(creds.backupToken).toString('hex'),
         token: crypto.createHash('md5')
-          .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
-          .digest('hex'),
+       .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
+       .digest('hex'),
         mcc: '510',
         mnc: '001',
         sim_mcc: '000',
@@ -176,18 +160,45 @@ function buildParams(phone) {
 }
 
 async function cekBan(phone) {
-    await ensureBaileys();
-    const rawCreds = initAuthCreds();
-    if(!rawCreds.identityId) rawCreds.identityId = crypto.randomBytes(16);
-    if(!rawCreds.backupToken) rawCreds.backupToken = crypto.randomBytes(20);
-    const identityKey = baileysGenerateKeyPair();
-    const signedPreKey = baileysSignedKeyPair(identityKey.private, 1);
-    rawCreds.signedIdentityKey = { public: identityKey.public };
-    rawCreds.signedPreKey = { keyPair: signedPreKey.keyPair, signature: signedPreKey.signature };
-    rawCreds.registrationId = baileysGenerateRegistrationId();
+    const creds = initAuthCreds();
+    const cc = phone.slice(0, 2);
+    const national = phone.slice(2);
+    const eRegid = Buffer.alloc(4);
+    eRegid.writeInt32BE(creds.registrationId);
     const hmacToken = genToken(phone);
-    const params = buildParams(phone);
-    params.to = hmacToken;
+    const params = {
+        cc,
+        in: national,
+        Rc: '0',
+        lg: 'en',
+        lc: 'GB',
+        mistyped: '6',
+        authkey: Buffer.from(creds.noiseKey.public).toString('base64url'),
+        e_regid: eRegid.toString('base64url'),
+        e_keytype: 'BQ',
+        e_ident: Buffer.from(creds.signedIdentityKey.public).toString('base64url'),
+        e_skey_id: 'AAAA',
+        e_skey_val: Buffer.from(creds.signedPreKey.keyPair.public).toString('base64url'),
+        e_skey_sig: Buffer.from(creds.signedPreKey.signature).toString('base64url'),
+        fdid: creds.phoneId,
+        network_ratio_type: '1',
+        expid: creds.deviceId,
+        simnum: '1',
+        hasinrc: '1',
+        pid: Math.floor(Math.random() * 1000).toString(),
+        id: Buffer.from(creds.identityId).toString('hex'),
+        backup_token: Buffer.from(creds.backupToken).toString('hex'),
+        token: crypto.createHash('md5')
+       .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
+       .digest('hex'),
+        mcc: '510',
+        mnc: '001',
+        sim_mcc: '000',
+        sim_mnc: '000',
+        reason: '',
+        hasav: '1',
+        to: hmacToken
+    };
     const qs = new URLSearchParams(params).toString();
     const url = `${PROXY}/s/s?_=/v2/exist&${qs}`;
     const res = await axios.get(url, {
