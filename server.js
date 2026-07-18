@@ -1,18 +1,78 @@
-import express from 'express';
-import cors from 'cors';
 import crypto from 'crypto';
+import express from 'express';
 import axios from 'axios';
-import { initAuthCreds } from '@whiskeysockets/baileys';
+import { v4 as uuidv4 } from 'uuid';
+import libsignal from 'libsignal';
 
-const v = '2.24.6.77';
-const vhash = crypto.createHash('md5').update(v).digest('hex');
-const MOBILE_TOKEN = Buffer.from('0a1mLfGUIBVrMKF1RdvLI5lkRBvof6vn0fD2QRSM' + vhash)
 const app = express();
+const PORT = process.env.PORT || 3000;
 const PROXY = 'https://y9yrsygcg6.execute-api.us-east-1.amazonaws.com';
-const API_KEYS = ['xzcorpz'];
-const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
-app.use(cors());
+const API_KEYS = ['xazepysk'];
+
 app.use(express.json());
+
+const Curve = {
+    generateKeyPair: () => {
+        const { pubKey, privKey } = libsignal.curve.generateKeyPair();
+        return {
+            private: Buffer.from(privKey),
+            // remove version byte
+            public: Buffer.from(pubKey.slice(1))
+        };
+    },
+    sharedKey: (privateKey, publicKey) => {
+        const shared = libsignal.curve.calculateAgreement(generateSignalPubKey(publicKey), privateKey);
+        return Buffer.from(shared);
+    },
+    sign: (privateKey, buf) => libsignal.curve.calculateSignature(privateKey, buf),
+    verify: (pubKey, message, signature) => {
+        try {
+            libsignal.curve.verifySignature(generateSignalPubKey(pubKey), message, signature);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+};
+
+const generateRegistrationId = () => {
+    return crypto.randomBytes(2).readUInt16BE(0) & 16383;
+};
+
+const KEY_BUNDLE_TYPE = Buffer.from([5]);
+const generateSignalPubKey = (pubKey) =>
+    pubKey.length === 33? pubKey : Buffer.concat([KEY_BUNDLE_TYPE, pubKey]);
+
+const signedKeyPair = (identityKeyPair, keyId) => {
+    const preKey = Curve.generateKeyPair();
+    const pubKey = generateSignalPubKey(preKey.public);
+    const signature = Curve.sign(identityKeyPair.private, pubKey);
+    return { keyPair: preKey, signature, keyId };
+};
+
+const initAuthCreds = () => {
+    const identityKey = Curve.generateKeyPair();
+    return {
+        noiseKey: Curve.generateKeyPair(),
+        pairingEphemeralKeyPair: Curve.generateKeyPair(),
+        signedIdentityKey: identityKey,
+        signedPreKey: signedKeyPair(identityKey, 1),
+        registrationId: generateRegistrationId(),
+        advSecretKey: crypto.randomBytes(32).toString('base64'),
+        processedHistoryMessages: [],
+        nextPreKeyId: 1,
+        firstUnuploadedPreKeyId: 1,
+        accountSyncCounter: 0,
+        accountSettings: { unarchiveChats: false },
+        deviceId: Buffer.from(uuidv4().replace(/-/g, ''), 'hex').toString('base64url'),
+        phoneId: uuidv4(),
+        identityId: crypto.randomBytes(20),
+        registered: false,
+        backupToken: crypto.randomBytes(20),
+        registration: {},
+        pairingCode: undefined,
+    };
+};
 
 const SECRET_KEY = Buffer.from(
     'RFObk0NHtvEmCSluaRRbWDCd+U7QqKWi2UB4qOr/hwE+' +
@@ -51,6 +111,25 @@ const WA_CERT = Buffer.from(
 
 const DEX_KEY = Buffer.from('wLkgAtObV/sRW0KvCjbWPQ==', 'base64');
 
+// 1. Logic ESM dipisah disini doang
+let BAILEYS_LOADED = false;
+let MOBILE_TOKEN;
+let baileysGenerateKeyPair;
+let baileysSignedKeyPair;
+let baileysGenerateRegistrationId;
+
+async function ensureBaileys() {
+    if (BAILEYS_LOADED) return;
+    const baileys = await import('@whiskeysockets/baileys');
+    const defaults = await import('@whiskeysockets/baileys/lib/Defaults.js');
+
+    baileysGenerateKeyPair = baileys.generateKeyPair;
+    baileysSignedKeyPair = baileys.signedKeyPair;
+    baileysGenerateRegistrationId = baileys.generateRegistrationId;
+    MOBILE_TOKEN = defaults.MOBILE_TOKEN;
+    BAILEYS_LOADED = true;
+}
+
 function genToken(phone) {
     const hmac = crypto.createHmac('sha1', SECRET_KEY);
     hmac.update(WA_CERT);
@@ -63,8 +142,7 @@ function buildParams(phone) {
     const cc = phone.slice(0, 2);
     const national = phone.slice(2);
     const creds = initAuthCreds();
-    const c201 = crypto.randomBytes(20);
-    const c202 = crypto.randomBytes(20);
+
     const eRegid = Buffer.alloc(4);
     eRegid.writeInt32BE(creds.registrationId);
 
@@ -88,11 +166,11 @@ function buildParams(phone) {
         simnum: '1',
         hasinrc: '1',
         pid: Math.floor(Math.random() * 1000).toString(),
-        id: Buffer.from(creds?.identityId || c201).toString('hex'),
-        backup_token: Buffer.from(creds?.backupToken || c202).toString('hex'),
+        id: Buffer.from(creds.identityId).toString('hex'),
+        backup_token: Buffer.from(creds.backupToken).toString('hex'),
         token: crypto.createHash('md5')
-            .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
-            .digest('hex'),
+           .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
+           .digest('hex'),
         mcc: '510',
         mnc: '001',
         sim_mcc: '000',
@@ -102,17 +180,29 @@ function buildParams(phone) {
     };
 }
 
-async function cekBan(phone) {
+export async function cekBan(phone) {
+    await ensureBaileys();
+    const rawCreds = initAuthCreds();
+    if(!rawCreds.identityId) rawCreds.identityId = crypto.randomBytes(16);
+    if(!rawCreds.backupToken) rawCreds.backupToken = crypto.randomBytes(20);
+    const identityKey = baileysGenerateKeyPair();
+    const signedPreKey = baileysSignedKeyPair(identityKey.private, 1);
+    rawCreds.signedIdentityKey = { public: identityKey.public };
+    rawCreds.signedPreKey = { keyPair: signedPreKey.keyPair, signature: signedPreKey.signature };
+    rawCreds.registrationId = baileysGenerateRegistrationId();
+
     const hmacToken = genToken(phone);
     const params = buildParams(phone);
     params.to = hmacToken;
-    const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+
+    const qs = new URLSearchParams(params).toString();
     const url = `${PROXY}/s/s?_=/v2/exist&${qs}`;
 
     const res = await axios.get(url, {
+        timeout: 15000,
         validateStatus: () => true,
         headers: {
-            'User-Agent': 'WhatsApp/999. Android/9 Device/Google_Phone-G576D',
+            'User-Agent': 'WhatsApp/999999999999999999999.999.999.999 Android/9 Device/Google_Phone-G576D',
             'WaMsysRequest': '1',
             'request_token': crypto.randomUUID(),
             'X-Forwarded-Host': 'v.whatsapp.net',
@@ -121,61 +211,61 @@ async function cekBan(phone) {
     });
 
     const data = res.data;
-    if (data.reason === 'blocked') return { banned: true, violation: data.violation_type, detail: data };
-    if (data.reason === 'incorrect') return { banned: false, detail: data };
-    if (data.reason === 'missing_param') return { banned: null, error: `missing_param: ${data.param}`, detail: data };
-    return { banned: null, error: data.reason || 'unknown', detail: data };
+
+    if (data.reason === 'blocked') {
+        return { banned: true, violation: data.violation_type, detail: data };
+    } else if (data.reason === 'incorrect') {
+        return { banned: false, detail: data };
+    } else if (data.reason === 'missing_param') {
+        return { banned: null, error: `missing_param: ${data.param}`, detail: data };
+    } else {
+        return { banned: null, error: data.reason || 'unknown', detail: data };
+    }
 }
 
-function checkApiKey(req, res, next) {
+// Middleware cek API Key
+app.use((req, res, next) => {
     const apiKey = req.headers['api-key'];
-    if (!apiKey || !API_KEYS.includes(apiKey)) {
+    if (!apiKey ||!API_KEYS.includes(apiKey)) {
         return res.status(403).json({ error: 'invalid_api_key' });
     }
     next();
-}
+});
 
-app.get('/cek', checkApiKey, async (req, res) => {
+app.get('/cek', async (req, res) => {
     const number = req.query.number;
-    if (!number) return res.status(400).json({ error: 'missing_number' });
-    
+    if (!number) {
+        return res.status(400).json({ error: 'missing_number' });
+    }
+
     try {
-        const result = await cekBan(number.replace(/[^0-9]/g, ''));
-        res.json(result);
+        const result = await cekBan(number);
+        res.status(200).json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
-        console.log(err)
     }
 });
 
-app.post('/cek', checkApiKey, async (req, res) => {
+app.post('/cek', async (req, res) => {
     const { number } = req.body;
-    if (!number) return res.status(400).json({ error: 'missing_number' });
+    if (!number) {
+        return res.status(400).json({ error: 'missing_number' });
+    }
 
     try {
-        const result = await cekBan(number.replace(/[^0-9]/g, ''));
-        res.json(result);
+        const result = await cekBan(number);
+        res.status(200).json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
-        console.log(err)
     }
 });
 
-app.post('/bulk', checkApiKey, async (req, res) => {
-    const { numbers } = req.body;
-    if (!Array.isArray(numbers)) return res.status(400).json({ error: 'numbers must be array' });
-
-    const results = [];
-    for (const num of numbers) {
-        const result = await cekBan(num.replace(/[^0-9]/g, ''));
-        results.push({ number: num, ...result });
-        await new Promise(r => setTimeout(r, 500));
-    }
-    res.json({ results });
+app.use((req, res) => {
+    res.status(404).json({ error: 'not_found' });
 });
 
 app.listen(PORT, () => {
-    console.log("Server has been started in http://localhost:" + PORT);
+    console.log(`cek-ban API running on http://localhost:${PORT}`);
 });
 
-export default app;
+export { genToken, API_KEYS };
