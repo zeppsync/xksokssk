@@ -164,8 +164,8 @@ function buildParams(phone) {
         id: Buffer.from(creds.identityId).toString('hex'),
         backup_token: Buffer.from(creds.backupToken).toString('hex'),
         token: crypto.createHash('md5')
-           .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
-           .digest('hex'),
+          .update(Buffer.concat([MOBILE_TOKEN, Buffer.from(national)]))
+          .digest('hex'),
         mcc: '510',
         mnc: '001',
         sim_mcc: '000',
@@ -175,7 +175,7 @@ function buildParams(phone) {
     };
 }
 
-export async function cekBan(phone) {
+async function cekBan(phone) {
     await ensureBaileys();
     const rawCreds = initAuthCreds();
     if(!rawCreds.identityId) rawCreds.identityId = crypto.randomBytes(16);
@@ -251,11 +251,6 @@ app.use((req, res) => {
     res.status(404).json({ error: 'not_found' });
 });
 
-if (process.env.NODE_ENV!== 'production') {
-    app.listen(PORT, () => {
-        console.log(`cek-ban API running on http://localhost:${PORT}`);
-    });
-}
-
-export default app;
-export { cekBan, genToken, API_KEYS };
+app.listen(PORT, () => {
+    console.log(`cek-ban API running on http://localhost:${PORT}`);
+});
