@@ -119,7 +119,7 @@ let baileysGenerateRegistrationId;
 async function ensureBaileys() {
     if (BAILEYS_LOADED) return;
     const baileys = await import('@whiskeysockets/baileys');
-    const defaults = await import('@whiskeysockets/baileys/lib/Defaults.js');
+    const defaults = await import('@whiskeysockets/baileys/lib/Defaults/index.js');
     baileysGenerateKeyPair = baileys.generateKeyPair;
     baileysSignedKeyPair = baileys.signedKeyPair;
     baileysGenerateRegistrationId = baileys.generateRegistrationId;
