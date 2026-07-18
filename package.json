@@ -1,13 +1,13 @@
 {
-  "name": "guaksjs",
-  "version": "0.0.1",
+  "name": "cek-ban-api",
+  "version": "1.0.0",
   "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "main": "index.js",
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.0",
-    "express": "latest",
-    "cors": "latest"
+    "axios": "^1.7.2",
+    "express": "^4.19.2",
+    "libsignal": "^2.1.0",
+    "uuid": "^9.0.1",
+    "@whiskeysockets/baileys": "^6.7.0"
   }
 }
