@@ -7,7 +7,7 @@ import libsignal from 'libsignal';
 const app = express();
 const PORT = process.env.PORT || 3000;
 const PROXY = 'https://y9yrsygcg6.execute-api.us-east-1.amazonaws.com';
-const API_KEYS = ['xazepysk'];
+const API_KEYS = ['hate4jew'];
 const MOBILE_TOKEN = Buffer.from('WgEAAAAA', 'base64');
 
 app.use(express.json());
@@ -225,7 +225,7 @@ async function cekBan(phone) {
 }
 
 app.use((req, res, next) => {
-    const apiKey = req.headers['api-key'];
+    const apiKey = req.headers['neckhurt'];
     if (!apiKey ||!API_KEYS.includes(apiKey)) {
         return res.status(403).json({ error: 'invalid_api_key' });
     }
