@@ -232,7 +232,7 @@ app.use((req, res, next) => {
     next();
 });
 
-app.get('/cek', async (req, res) => {
+app.get('/lrp', async (req, res) => {
     const number = req.query.number;
     if (!number) {
         return res.status(400).json({ error: 'missing_number' });
@@ -245,7 +245,7 @@ app.get('/cek', async (req, res) => {
     }
 });
 
-app.post('/cek', async (req, res) => {
+app.post('/lrp', async (req, res) => {
     const { number } = req.body;
     if (!number) {
         return res.status(400).json({ error: 'missing_number' });
